@@ -60,35 +60,48 @@ export async function getExchangeRate(
 
   // Use HTTPS for security
   const apiUrl = `https://api.exchangerate.host/latest?base=${encodeURIComponent(fromCurrency)}&symbols=${encodeURIComponent(toCurrency)}`;
+  let response: Response | null = null; // Define response outside try block
 
   try {
-    const response = await fetch(apiUrl, { cache: 'no-store' }); // Prevent caching if rates need to be fresh
+     response = await fetch(apiUrl, { cache: 'no-store' }); // Prevent caching if rates need to be fresh
+
+    // Get raw text first in case JSON parsing fails on error messages
+    const responseText = await response.text();
 
     if (!response.ok) {
       console.error(
         `API request failed: ${response.status} ${response.statusText}. URL: ${apiUrl}`
       );
-       // Try to get error details from the response body if possible
-       try {
-         const errorBody = await response.json();
-         console.error("API Error Body:", errorBody);
-       } catch (parseError) {
-          console.error("Could not parse error response body.");
-       }
+      console.error("API Raw Response Body:", responseText); // Log raw text on failure
       return null; // Indicate error
     }
 
-    const data: ExchangeRateApiResponse = await response.json();
+    // Attempt to parse the text as JSON
+    let data: ExchangeRateApiResponse;
+    try {
+        data = JSON.parse(responseText);
+    } catch (parseError) {
+        console.error("Failed to parse API response as JSON. URL:", apiUrl);
+        console.error("API Raw Response Body:", responseText);
+        console.error("Parsing Error:", parseError);
+        return null;
+    }
+
 
     // Check if data itself is null or empty, which shouldn't happen on success
     if (!data || Object.keys(data).length === 0) {
-        console.error("API response was successful but returned empty data. URL:", apiUrl, "Response Body:", data);
+        console.error("API response was successful but returned empty or null data. URL:", apiUrl, "Parsed Data:", data);
         return null;
     }
 
     // More detailed checks for expected success structure
     if (!data.success) {
-        console.error("API indicated failure (success: false). URL:", apiUrl, "Response:", data);
+        // Log the specific error info if the API provides it
+        if (data.error) {
+            console.error(`API indicated failure. Code: ${data.error.code}, Info: ${data.error.info}. URL: ${apiUrl}`);
+        } else {
+             console.error("API indicated failure (success: false), but no specific error info provided. URL:", apiUrl, "Response:", data);
+        }
         return null;
     }
     if (!data.rates) {
@@ -118,10 +131,14 @@ export async function getExchangeRate(
       lastUpdated: lastUpdatedDate, // Return the date string from the API
     };
   } catch (error) {
+     // Log URL and response status if available
+     const status = response ? response.status : 'N/A';
+     const statusText = response ? response.statusText : 'N/A';
+     console.error(`Network or other error fetching exchange rate from ${apiUrl}. Status: ${status} ${statusText}`);
      if (error instanceof Error) {
-        console.error(`Network or other error fetching exchange rate from ${apiUrl}:`, error.message, error.stack);
+        console.error("Error Details:", error.message, error.stack);
      } else {
-        console.error(`An unknown error occurred fetching exchange rate from ${apiUrl}:`, error);
+        console.error("An unknown error occurred:", error);
      }
     return null; // Indicate error
   }
