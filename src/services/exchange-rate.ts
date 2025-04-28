@@ -13,27 +13,21 @@ export interface ExchangeRate {
 }
 
 /**
- * Represents the structure of the response from the exchangerate.host API.
+ * Represents the structure of the response from the frankfurter.app API.
  */
-interface ExchangeRateApiResponse {
-  motd?: { // Mark MOTD as optional, it might not always be present
-    msg: string;
-    url: string;
-  };
-  success: boolean;
-  base?: string; // Optional, might not be present on error
-  date?: string; // Date string like "YYYY-MM-DD", optional on error
-  rates?: { // Optional, might not be present on error
+interface FrankfurterApiResponse {
+  amount?: number; // Amount converted (usually 1 when fetching rate)
+  base?: string;   // Base currency code
+  date?: string;   // Date string like "YYYY-MM-DD"
+  rates?: {       // Target currency rates relative to the base
     [currencyCode: string]: number;
   };
-  error?: { // Add error field based on potential API error responses
-      code: number;
-      info: string;
-  }
+  // Frankfurter typically doesn't have a 'success' or 'error' field in the same way,
+  // relies on HTTP status codes for errors. We handle non-ok responses.
 }
 
 /**
- * Asynchronously retrieves the exchange rate between two currencies using exchangerate.host.
+ * Asynchronously retrieves the exchange rate between two currencies using frankfurter.app.
  *
  * @param fromCurrency The currency code to convert from (e.g., 'USD').
  * @param toCurrency The currency code to convert to (e.g., 'EUR').
@@ -58,8 +52,8 @@ export async function getExchangeRate(
     };
   }
 
-  // Use HTTPS for security
-  const apiUrl = `https://api.exchangerate.host/latest?base=${encodeURIComponent(fromCurrency)}&symbols=${encodeURIComponent(toCurrency)}`;
+  // Use frankfurter.app API endpoint
+  const apiUrl = `https://api.frankfurter.app/latest?from=${encodeURIComponent(fromCurrency)}&to=${encodeURIComponent(toCurrency)}`;
   let response: Response | null = null; // Define response outside try block
 
   try {
@@ -69,15 +63,24 @@ export async function getExchangeRate(
     const responseText = await response.text();
 
     if (!response.ok) {
+      // Frankfurter might return specific error messages in JSON format even on failure
+      let errorInfo = responseText; // Default to raw text
+      try {
+          const errorData = JSON.parse(responseText);
+          if (errorData && errorData.message) {
+              errorInfo = errorData.message;
+          }
+      } catch (e) {
+          // Ignore parsing error, stick with raw text
+      }
       console.error(
-        `API request failed: ${response.status} ${response.statusText}. URL: ${apiUrl}`
+        `API request failed: ${response.status} ${response.statusText}. URL: ${apiUrl}. Info: ${errorInfo}`
       );
-      console.error("API Raw Response Body:", responseText); // Log raw text on failure
       return null; // Indicate error
     }
 
     // Attempt to parse the text as JSON
-    let data: ExchangeRateApiResponse;
+    let data: FrankfurterApiResponse;
     try {
         data = JSON.parse(responseText);
     } catch (parseError) {
@@ -94,16 +97,7 @@ export async function getExchangeRate(
         return null;
     }
 
-    // More detailed checks for expected success structure
-    if (!data.success) {
-        // Log the specific error info if the API provides it
-        if (data.error) {
-            console.error(`API indicated failure. Code: ${data.error.code}, Info: ${data.error.info}. URL: ${apiUrl}`);
-        } else {
-             console.error("API indicated failure (success: false), but no specific error info provided. URL:", apiUrl, "Response:", data);
-        }
-        return null;
-    }
+    // Detailed checks for expected frankfurter.app success structure
     if (!data.rates) {
         console.error("API response missing 'rates' object. URL:", apiUrl, "Response:", data);
         return null;
