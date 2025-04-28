@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -19,6 +20,7 @@ const CurrencyConverter: React.FC = () => {
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<string | null>(null);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -27,85 +29,114 @@ const CurrencyConverter: React.FC = () => {
        // Ensure only one decimal point
        if (value.split('.').length > 2) return;
        setAmount(value);
-       setError(null); // Clear error on valid input
+       // Clear error related to negativity or emptiness when input becomes valid or potentially valid
+       if (error === "Amount cannot be negative." || error === "Please enter an amount.") {
+         setError(null);
+       }
     } else if (parseFloat(value) < 0) {
+      setAmount(value); // Still set the amount to show the invalid input
       setError("Amount cannot be negative.");
+    }
+     // If input becomes empty after being invalid, clear negativity error
+     if (value === "" && error === "Amount cannot be negative.") {
+        setError(null);
     }
   };
 
   const fetchRate = useCallback(async () => {
-    if (!fromCurrency || !toCurrency || !amount || parseFloat(amount) < 0) {
-        // Don't fetch if input is invalid or currencies are not set
-        setConvertedAmount(null); // Clear converted amount
-        setExchangeRateInfo(null); // Clear rate info
-        if (parseFloat(amount) < 0 && !error) {
-            setError("Amount cannot be negative.");
-        } else if (!amount && !error) {
-            setError("Please enter an amount.");
-        }
+    // Reset state before fetch/validation
+    setIsLoading(true);
+    setError(null);
+    setConvertedAmount(null);
+    setLastUpdatedTime(null); // Clear last updated time initially
+
+    const numericAmount = parseFloat(amount);
+
+    // Validation checks
+    if (!fromCurrency || !toCurrency) {
+       setError("Please select both currencies.");
+       setIsLoading(false);
+       return;
+    }
+    if (amount === "") {
+        // setError("Please enter an amount."); // Optional: Show error for empty input, or just show no result
+        setIsLoading(false);
+        return; // Don't fetch if amount is empty
+    }
+     if (isNaN(numericAmount)) {
+        setError("Invalid amount entered."); // Handle cases like "." or "-"
+        setIsLoading(false);
         return;
     }
+    if (numericAmount < 0) {
+      setError("Amount cannot be negative.");
+      setIsLoading(false);
+      return;
+    }
 
-    setIsLoading(true);
-    setError(null); // Clear previous errors
 
     try {
       const rateInfo = await getExchangeRate(fromCurrency, toCurrency);
-      setExchangeRateInfo(rateInfo);
 
-      if (rateInfo && amount) {
-        const numericAmount = parseFloat(amount);
-        if (!isNaN(numericAmount)) {
-            const result = numericAmount * rateInfo.rate;
-            // Format to a reasonable number of decimal places, e.g., 4
-            setConvertedAmount(result.toFixed(4));
-        } else {
-             setConvertedAmount(null); // Handle case where amount is '.' or similar invalid float
-        }
-
+      if (rateInfo) {
+        setExchangeRateInfo(rateInfo); // Keep the raw rate info if needed elsewhere
+        const result = numericAmount * rateInfo.rate;
+        // Format to a reasonable number of decimal places, e.g., 4
+        setConvertedAmount(result.toFixed(4));
+        setLastUpdatedTime(rateInfo.lastUpdated); // Set the last updated time from API response
       } else {
-         setConvertedAmount(null);
-         if (!rateInfo) {
-            setError("Failed to fetch exchange rate. Please try again later.");
-         }
+         setError("Failed to fetch exchange rate. Please try again later.");
       }
     } catch (err) {
       console.error("Failed to fetch exchange rate:", err);
       setError("Failed to fetch exchange rate. Please try again later.");
-      setConvertedAmount(null);
-      setExchangeRateInfo(null);
     } finally {
       setIsLoading(false);
     }
-  }, [fromCurrency, toCurrency, amount, error]); // Add error dependency
+  }, [fromCurrency, toCurrency, amount]); // Only depend on inputs needed for fetching
 
   useEffect(() => {
-    // Fetch rate initially and whenever currencies or amount change
-    fetchRate();
-  }, [fetchRate]); // Dependency array now only includes fetchRate
+    // Fetch rate initially and whenever relevant inputs change
+     // Debounce or delay fetching slightly to avoid rapid calls while typing
+    const handler = setTimeout(() => {
+        fetchRate();
+    }, 300); // Adjust delay as needed (e.g., 300ms)
+
+    return () => {
+        clearTimeout(handler); // Cleanup timeout on unmount or dependency change
+    };
+  }, [fetchRate]); // fetchRate includes dependencies: fromCurrency, toCurrency, amount
 
 
   const swapCurrencies = () => {
-    const temp = fromCurrency;
+    const tempAmount = amount; // Store current amount if needed, though swapping usually recalculates
+    const tempFrom = fromCurrency;
     setFromCurrency(toCurrency);
-    setToCurrency(temp);
-    // Amount remains the same, conversion will be recalculated by useEffect
+    setToCurrency(tempFrom);
+    // Optional: Swap the amounts if you want the *result* to become the new input
+    // if (convertedAmount) {
+    //   setAmount(convertedAmount);
+    // }
+    // Recalculation will be triggered by the useEffect watching currency changes
   };
 
   const formattedLastUpdated = useMemo(() => {
-    if (!exchangeRateInfo?.lastUpdated) return null;
+    if (!lastUpdatedTime) return null;
     try {
-        const date = parseISO(exchangeRateInfo.lastUpdated);
-        return format(date, "PPP p"); // e.g., Jun 21, 2024 10:30:00 AM
+        // The date string from the API might just be 'YYYY-MM-DD'.
+        // Append a default time to make it a full ISO string parseable by date-fns.
+        const isoString = lastUpdatedTime.includes('T') ? lastUpdatedTime : `${lastUpdatedTime}T00:00:00Z`;
+        const date = parseISO(isoString);
+        return format(date, "PPP p"); // e.g., Jun 21, 2024 12:00:00 AM (or actual time if provided)
     } catch (e) {
-        console.error("Error parsing date:", e);
+        console.error("Error parsing date:", e, "Input was:", lastUpdatedTime);
         return "Invalid date"; // Fallback
     }
-  }, [exchangeRateInfo?.lastUpdated]);
+  }, [lastUpdatedTime]);
 
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-lg rounded-xl overflow-hidden">
+    <Card className="w-full max-w-md mx-auto shadow-lg rounded-xl overflow-hidden transition-all duration-300 ease-in-out">
       <CardHeader className="bg-primary text-primary-foreground p-6">
         <CardTitle className="text-2xl font-bold text-center">RateShift Currency Converter</CardTitle>
       </CardHeader>
@@ -119,14 +150,15 @@ const CurrencyConverter: React.FC = () => {
             value={amount}
             onChange={handleAmountChange}
             placeholder="Enter amount"
-            className={`text-base ${error && amount && parseFloat(amount) < 0 ? 'border-destructive ring-destructive focus-visible:ring-destructive' : ''}`}
+            className={`text-base transition-colors duration-200 ${error && (amount === "" || parseFloat(amount) < 0 || isNaN(parseFloat(amount))) ? 'border-destructive ring-destructive focus-visible:ring-destructive' : ''}`}
             aria-invalid={!!error}
             aria-describedby={error ? "amount-error" : undefined}
           />
-          {error && <p id="amount-error" className="text-sm text-destructive mt-1">{error}</p>}
+          {error && <p id="amount-error" className="text-sm text-destructive mt-1 transition-opacity duration-200 ease-in-out opacity-100">{error}</p>}
+           {!error && <p className="text-sm text-destructive mt-1 h-[1.25rem] opacity-0"> </p>} {/* Placeholder for spacing */}
         </div>
 
-        <div className="flex items-center justify-between space-x-4">
+        <div className="flex items-end justify-between space-x-2 sm:space-x-4">
           <div className="flex-1 space-y-2">
             <Label htmlFor="from-currency" className="text-sm font-medium">From</Label>
             <CurrencySelector
@@ -142,7 +174,7 @@ const CurrencyConverter: React.FC = () => {
             variant="ghost"
             size="icon"
             onClick={swapCurrencies}
-            className="mt-6 text-primary hover:bg-primary/10 rounded-full"
+            className="mb-1 text-primary hover:bg-primary/10 rounded-full transition-transform duration-200 hover:scale-110 active:scale-95"
             aria-label="Swap currencies"
           >
             <ArrowRightLeft className="h-5 w-5" />
@@ -160,37 +192,48 @@ const CurrencyConverter: React.FC = () => {
           </div>
         </div>
 
-        <div className="text-center pt-4">
+        <div className="text-center pt-4 min-h-[70px] flex flex-col justify-center items-center"> {/* Min height for consistent layout */}
           {isLoading ? (
-            <div className="flex items-center justify-center text-muted-foreground">
+            <div className="flex items-center justify-center text-muted-foreground animate-pulse">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
               <span>Fetching latest rate...</span>
             </div>
-          ) : convertedAmount !== null ? (
-            <div className="space-y-1">
-               <p className="text-sm text-muted-foreground">
-                 {amount || 0} {fromCurrency} =
-               </p>
-               <p className="text-3xl font-bold text-primary">
-                 {convertedAmount} {toCurrency}
-               </p>
-
-            </div>
-          ) : !error ? (
+          ) : convertedAmount !== null && !error ? (
+             // Ensure amount is valid number > 0 before showing result
+             amount && parseFloat(amount) >= 0 && !isNaN(parseFloat(amount)) ? (
+                <div className="space-y-1 animate-fade-in">
+                   <p className="text-sm text-muted-foreground">
+                     {parseFloat(amount).toLocaleString()} {fromCurrency} =
+                   </p>
+                   <p className="text-3xl font-bold text-primary">
+                     {convertedAmount} {toCurrency}
+                   </p>
+                </div>
+             ) : !error ? ( // Show prompt only if no error and no valid result
+                <p className="text-muted-foreground">Enter a valid amount to convert.</p>
+             ): null
+          ) : !error ? ( // If not loading, no result, and no specific error, prompt user
              <p className="text-muted-foreground">Enter an amount to convert.</p>
-          ): null}
+          ): null /* If there's an error, it's shown under the input */ }
         </div>
 
       </CardContent>
-       {formattedLastUpdated && !isLoading && !error && (
-         <CardFooter className="bg-secondary p-3 text-center justify-center">
+       {formattedLastUpdated && !isLoading && !error && convertedAmount !== null && (
+         <CardFooter className="bg-secondary p-3 text-center justify-center border-t">
              <p className="text-xs text-muted-foreground">
-                 Exchange rate updated: {formattedLastUpdated}
+                 Rate from {formattedLastUpdated}
              </p>
          </CardFooter>
+       )}
+        {/* Placeholder footer for consistent height when no rate is shown */}
+       {(!formattedLastUpdated || isLoading || error || convertedAmount === null) && (
+            <CardFooter className="bg-secondary p-3 text-center justify-center border-t h-[37px]">
+                <p className="text-xs text-muted-foreground opacity-0">Placeholder</p>
+            </CardFooter>
        )}
     </Card>
   );
 };
 
 export default CurrencyConverter;
+
