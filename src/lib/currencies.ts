@@ -20,7 +20,7 @@ export const currencies: Currency[] = [
   { code: "MXN", name: "Mexican Peso" },
   { code: "NOK", name: "Norwegian Krone" },
   { code: "NZD", name: "New Zealand Dollar" },
-  { code: "PKR", name: "Pakistani Rupee" }, // Added PKR
+  // { code: "PKR", name: "Pakistani Rupee" }, // Removed PKR as it's not supported by frankfurter.app
   { code: "RUB", name: "Russian Ruble" },
   { code: "SEK", name: "Swedish Krona" },
   { code: "SGD", name: "Singapore Dollar" },
@@ -28,3 +28,4 @@ export const currencies: Currency[] = [
   { code: "USD", name: "United States Dollar" },
   { code: "ZAR", name: "South African Rand" },
 ];
+

@@ -14,8 +14,8 @@ import { format, parseISO } from 'date-fns';
 
 const CurrencyConverter: React.FC = () => {
   const [amount, setAmount] = useState<string>("1");
-  const [fromCurrency, setFromCurrency] = useState<string>("USD");
-  const [toCurrency, setToCurrency] = useState<string>("EUR");
+  const [fromCurrency, setFromCurrency] = useState<string>("USD"); // Default From: USD
+  const [toCurrency, setToCurrency] = useState<string>("INR");   // Default To: INR (Changed from EUR)
   const [exchangeRateInfo, setExchangeRateInfo] = useState<ExchangeRate | null>(null);
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -99,13 +99,23 @@ const CurrencyConverter: React.FC = () => {
     // Fetch rate initially and whenever relevant inputs change
      // Debounce or delay fetching slightly to avoid rapid calls while typing
     const handler = setTimeout(() => {
-        fetchRate();
+        // Fetch only if both currencies are selected
+        if (fromCurrency && toCurrency) {
+           fetchRate();
+        } else {
+            // If currencies are not selected yet, reset relevant state
+            setIsLoading(false);
+            setError(null);
+            setConvertedAmount(null);
+            setLastUpdatedTime(null);
+        }
     }, 300); // Adjust delay as needed (e.g., 300ms)
 
     return () => {
         clearTimeout(handler); // Cleanup timeout on unmount or dependency change
     };
-  }, [fetchRate]); // fetchRate includes dependencies: fromCurrency, toCurrency, amount
+  // Trigger fetchRate directly when currencies change, but debounce for amount
+  }, [fromCurrency, toCurrency, amount, fetchRate]);
 
 
   const swapCurrencies = () => {
