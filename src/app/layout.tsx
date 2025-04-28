@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'geist/font/sans';
-import { GeistMono } from 'geist/font/mono';
+import { Inter } from 'next/font/google' // Use Inter font
 import './globals.css';
 import { ThemeProvider } from "@/components/theme-provider"; // Import ThemeProvider
+import { Toaster } from "@/components/ui/toaster"; // Import Toaster
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'RateShift Currency Converter',
@@ -17,16 +19,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}
+        className={`${inter.className} antialiased`}
         suppressHydrationWarning={true}
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light" // Default to light theme
+          // enableSystem // Remove system theme support
           disableTransitionOnChange
         >
           {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
