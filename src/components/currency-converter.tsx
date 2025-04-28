@@ -13,7 +13,7 @@ import { Loader2, ArrowRightLeft } from "lucide-react";
 import { format, parseISO } from 'date-fns';
 
 // Define popular currencies
-const popularCurrencies = ["USD", "EUR", "GBP", "JPY", "CAD"];
+const popularCurrencies = ["USD", "EUR", "GBP", "JPY", "CAD", "PKR"]; // Added PKR
 
 const CurrencyConverter: React.FC = () => {
   const [amount, setAmount] = useState<string>("1");
@@ -90,7 +90,7 @@ const CurrencyConverter: React.FC = () => {
         setLastUpdatedTime(rateInfo.lastUpdated); // Set the last updated time from static data source
       } else {
          // This case is less likely with static data unless currencies are invalid
-         setError("Failed to get exchange rate from static data.");
+         setError(`Failed to get exchange rate for ${fromCurrency} to ${toCurrency}.`);
       }
     } catch (err) {
       console.error("Error processing static exchange rate:", err);
@@ -135,10 +135,16 @@ const CurrencyConverter: React.FC = () => {
     // Recalculation will be triggered by the useEffect watching currency changes
   };
 
-   // Handler for popular currency button clicks
-   const handlePopularCurrencyClick = (currencyCode: string) => {
+   // Handler for popular 'From' currency button clicks
+   const handlePopularFromCurrencyClick = (currencyCode: string) => {
     setFromCurrency(currencyCode);
     // The useEffect watching fromCurrency will trigger fetchRate
+  };
+
+    // Handler for popular 'To' currency button clicks
+   const handlePopularToCurrencyClick = (currencyCode: string) => {
+    setToCurrency(currencyCode);
+    // The useEffect watching toCurrency will trigger fetchRate
   };
 
 
@@ -162,22 +168,40 @@ const CurrencyConverter: React.FC = () => {
       <CardHeader className="bg-primary text-primary-foreground p-6">
         <CardTitle className="text-2xl font-bold text-center">RateShift Currency Converter</CardTitle>
       </CardHeader>
-      <CardContent className="p-6 space-y-6 bg-background">
+      <CardContent className="p-6 space-y-6 bg-card text-card-foreground">
          {/* Popular Currencies Section */}
-         <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">Popular Currencies (set 'From')</Label>
-            <div className="flex flex-wrap gap-2">
-                {popularCurrencies.map((code) => (
-                <Button
-                    key={code}
-                    variant={fromCurrency === code ? "default" : "outline"} // Highlight active popular currency
-                    size="sm"
-                    onClick={() => handlePopularCurrencyClick(code)}
-                    className="transition-all"
-                >
-                    {code}
-                </Button>
-                ))}
+         <div className="space-y-4">
+            <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Popular Currencies (set 'From')</Label>
+                <div className="flex flex-wrap gap-2">
+                    {popularCurrencies.map((code) => (
+                    <Button
+                        key={`from-${code}`}
+                        variant={fromCurrency === code ? "default" : "outline"} // Highlight active popular currency
+                        size="sm"
+                        onClick={() => handlePopularFromCurrencyClick(code)}
+                        className="transition-all"
+                    >
+                        {code}
+                    </Button>
+                    ))}
+                </div>
+            </div>
+             <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Popular Currencies (set 'To')</Label>
+                <div className="flex flex-wrap gap-2">
+                    {popularCurrencies.map((code) => (
+                    <Button
+                        key={`to-${code}`}
+                        variant={toCurrency === code ? "default" : "outline"} // Highlight active popular currency
+                        size="sm"
+                        onClick={() => handlePopularToCurrencyClick(code)}
+                        className="transition-all"
+                    >
+                        {code}
+                    </Button>
+                    ))}
+                </div>
             </div>
         </div>
 
@@ -235,7 +259,7 @@ const CurrencyConverter: React.FC = () => {
 
         <div className="text-center pt-4 min-h-[70px] flex flex-col justify-center items-center"> {/* Min height for consistent layout */}
           {isLoading ? (
-            <div className="flex items-center justify-center text-muted-foreground animate-pulse">
+            <div className="flex items-center justify-center text-muted-foreground animate-pulse-slight">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
               <span>Calculating rate...</span>
             </div>
@@ -260,15 +284,15 @@ const CurrencyConverter: React.FC = () => {
 
       </CardContent>
        {formattedLastUpdated && !isLoading && !error && convertedAmount !== null && (
-         <CardFooter className="bg-secondary p-3 text-center justify-center border-t">
+         <CardFooter className="bg-secondary text-center justify-center border-t p-3">
              <p className="text-xs text-muted-foreground">
-                 Static Rates from {formattedLastUpdated}
+                 Rates from {formattedLastUpdated}
              </p>
          </CardFooter>
        )}
         {/* Placeholder footer for consistent height when no rate is shown */}
        {(!formattedLastUpdated || isLoading || error || convertedAmount === null) && (
-            <CardFooter className="bg-secondary p-3 text-center justify-center border-t h-[37px]">
+            <CardFooter className="bg-secondary text-center justify-center border-t h-[37px] p-3">
                 <p className="text-xs text-muted-foreground opacity-0">Placeholder</p>
             </CardFooter>
        )}

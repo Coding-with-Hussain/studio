@@ -43,10 +43,12 @@ body {
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
-    --background: 240 10% 3.9%; /* Dark Gray */
-    --foreground: 0 0% 98%; /* White */
-    --card: 240 10% 3.9%; /* Dark Gray */
+     /* Use card colors for main background/foreground in dark mode */
+    --background: 240 10% 3.9%; /* Dark Gray (Same as Card) */
+    --foreground: 0 0% 98%;    /* White (Same as Card Foreground) */
+    --card: 240 10% 3.9%;       /* Dark Gray */
     --card-foreground: 0 0% 98%; /* White */
+
     --popover: 240 10% 3.9%; /* Dark Gray */
     --popover-foreground: 0 0% 98%; /* White */
     --primary: 207 70% 53%; /* Blue #3498db */
