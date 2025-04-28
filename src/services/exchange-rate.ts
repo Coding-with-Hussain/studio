@@ -1,3 +1,6 @@
+
+import { conversion_rates } from '@/lib/currencies';
+
 /**
  * Represents the exchange rate between two currencies.
  */
@@ -7,31 +10,20 @@ export interface ExchangeRate {
    */
   rate: number;
   /**
-   * The date string (YYYY-MM-DD) of when the exchange rate data was published by the API.
+   * The date string (YYYY-MM-DD) indicating when the static rate data was last updated.
    */
-  lastUpdated: string; // Keep as date string from API
+  lastUpdated: string; // Keep as date string
 }
 
-/**
- * Represents the structure of the response from the frankfurter.app API.
- */
-interface FrankfurterApiResponse {
-  amount?: number; // Amount converted (usually 1 when fetching rate)
-  base?: string;   // Base currency code
-  date?: string;   // Date string like "YYYY-MM-DD"
-  rates?: {       // Target currency rates relative to the base
-    [currencyCode: string]: number;
-  };
-  // Frankfurter typically doesn't have a 'success' or 'error' field in the same way,
-  // relies on HTTP status codes for errors. We handle non-ok responses.
-}
+// Date when the static rates were last updated (adjust if needed)
+const STATIC_RATES_DATE = "2024-07-26"; // Or use a dynamic way to track updates
 
 /**
- * Asynchronously retrieves the exchange rate between two currencies using frankfurter.app.
+ * Retrieves the exchange rate between two currencies using static data.
  *
  * @param fromCurrency The currency code to convert from (e.g., 'USD').
  * @param toCurrency The currency code to convert to (e.g., 'EUR').
- * @returns A promise that resolves to an ExchangeRate object or null if an error occurs or currencies are invalid/same.
+ * @returns A promise that resolves to an ExchangeRate object or null if currencies are invalid/not found in static data.
  */
 export async function getExchangeRate(
   fromCurrency: string,
@@ -40,95 +32,49 @@ export async function getExchangeRate(
   // Basic validation
   if (!fromCurrency || !toCurrency) {
     console.warn("Attempted to fetch rate with missing currency codes.");
-    return null; // Indicate invalid input rather than default rate
+    return null;
   }
 
   // If currencies are the same, the rate is 1
   if (fromCurrency === toCurrency) {
     return {
       rate: 1,
-      // Use today's date in YYYY-MM-DD format for consistency
-      lastUpdated: new Date().toISOString().split('T')[0],
+      lastUpdated: STATIC_RATES_DATE,
     };
   }
 
-  // Use frankfurter.app API endpoint
-  const apiUrl = `https://api.frankfurter.app/latest?from=${encodeURIComponent(fromCurrency)}&to=${encodeURIComponent(toCurrency)}`;
-  let response: Response | null = null; // Define response outside try block
+  // Check if both currencies exist in our static rates data
+  if (!(fromCurrency in conversion_rates) || !(toCurrency in conversion_rates)) {
+    console.error(`One or both currencies not found in static data: ${fromCurrency}, ${toCurrency}`);
+    // Instead of returning null immediately, maybe try fetching from API as a fallback?
+    // For now, returning null as the static data is the primary source.
+    return null;
+  }
 
   try {
-     response = await fetch(apiUrl, { cache: 'no-store' }); // Prevent caching if rates need to be fresh
+    const fromRateUSD = conversion_rates[fromCurrency]; // Rate of 1 USD to fromCurrency
+    const toRateUSD = conversion_rates[toCurrency];     // Rate of 1 USD to toCurrency
 
-    // Get raw text first in case JSON parsing fails on error messages
-    const responseText = await response.text();
-
-    if (!response.ok) {
-      // Frankfurter might return specific error messages in JSON format even on failure
-      let errorInfo = responseText; // Default to raw text
-      try {
-          const errorData = JSON.parse(responseText);
-          if (errorData && errorData.message) {
-              errorInfo = errorData.message;
-          }
-      } catch (e) {
-          // Ignore parsing error, stick with raw text
-      }
-      console.error(
-        `API request failed: ${response.status} ${response.statusText}. URL: ${apiUrl}. Info: ${errorInfo}`
-      );
-      return null; // Indicate error
+    if (!fromRateUSD || !toRateUSD) {
+        // This case should ideally not happen if the check above passed, but good for safety.
+         console.error(`Static rate data missing for: ${fromCurrency} or ${toCurrency}`);
+         return null;
     }
 
-    // Attempt to parse the text as JSON
-    let data: FrankfurterApiResponse;
-    try {
-        data = JSON.parse(responseText);
-    } catch (parseError) {
-        console.error("Failed to parse API response as JSON. URL:", apiUrl);
-        console.error("API Raw Response Body:", responseText);
-        console.error("Parsing Error:", parseError);
-        return null;
-    }
+    // Calculate the rate: (amount in USD) / (rate of fromCurrency to USD) * (rate of toCurrency to USD)
+    // Since our rates are USD based (1 USD = X OTHER), we calculate:
+    // 1 unit of fromCurrency = (1 / fromRateUSD) USD
+    // (1 / fromRateUSD) USD = (1 / fromRateUSD) * toRateUSD units of toCurrency
+    const calculatedRate = (1 / fromRateUSD) * toRateUSD;
 
-
-    // Check if data itself is null or empty, which shouldn't happen on success
-    if (!data || Object.keys(data).length === 0) {
-        console.error("API response was successful but returned empty or null data. URL:", apiUrl, "Parsed Data:", data);
-        return null;
-    }
-
-    // Detailed checks for expected frankfurter.app success structure
-    if (!data.rates) {
-        console.error("API response missing 'rates' object. URL:", apiUrl, "Response:", data);
-        return null;
-    }
-     if (typeof data.rates !== 'object' || data.rates === null) {
-        console.error("API response 'rates' is not a valid object. URL:", apiUrl, "Response:", data);
-        return null;
-    }
-    if (!(toCurrency in data.rates)) {
-        console.error(`API response missing target currency '${toCurrency}' in 'rates'. URL:`, apiUrl, "Response:", data);
-        return null;
-    }
-    if (!data.date) {
-        console.warn("API response missing 'date'. Using current date as fallback. URL:", apiUrl, "Response:", data);
-        // Provide a fallback date, but ideally the API should return it
-        data.date = new Date().toISOString().split('T')[0];
-    }
-
-
-    // Use the date provided by the API as the last updated date
-    const lastUpdatedDate = data.date; // e.g., "2024-07-26"
 
     return {
-      rate: data.rates[toCurrency],
-      lastUpdated: lastUpdatedDate, // Return the date string from the API
+      rate: calculatedRate,
+      lastUpdated: STATIC_RATES_DATE,
     };
+
   } catch (error) {
-     // Log URL and response status if available
-     const status = response ? response.status : 'N/A';
-     const statusText = response ? response.statusText : 'N/A';
-     console.error(`Network or other error fetching exchange rate from ${apiUrl}. Status: ${status} ${statusText}`);
+     console.error(`Error calculating exchange rate between ${fromCurrency} and ${toCurrency} using static data.`);
      if (error instanceof Error) {
         console.error("Error Details:", error.message, error.stack);
      } else {
