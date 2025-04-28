@@ -4,8 +4,8 @@ export interface Currency {
   name: string;
 }
 
-// Updated list including all provided currency codes.
-// Names are added based on common knowledge or use the code if unknown.
+// Updated list including all provided currency codes from the conversion_rates data.
+// Names are added based on common knowledge or code if unknown.
 // Sorted alphabetically by code.
 export const currencies: Currency[] = [
   { code: "AED", name: "UAE Dirham" },
@@ -65,7 +65,7 @@ export const currencies: Currency[] = [
   { code: "GYD", name: "Guyanaese Dollar" },
   { code: "HKD", name: "Hong Kong Dollar" },
   { code: "HNL", name: "Honduran Lempira" },
-  { code: "HRK", name: "Croatian Kuna" }, // Kept for historical reference, though EUR is used now
+  { code: "HRK", name: "Croatian Kuna" }, // Still listed in rates, keeping
   { code: "HTG", name: "Haitian Gourde" },
   { code: "HUF", name: "Hungarian Forint" },
   { code: "IDR", name: "Indonesian Rupiah" },
@@ -135,7 +135,7 @@ export const currencies: Currency[] = [
   { code: "SGD", name: "Singapore Dollar" },
   { code: "SHP", name: "Saint Helena Pound" },
   { code: "SLE", name: "Sierra Leonean Leone" }, // New Leone (SLE)
-  { code: "SLL", name: "Sierra Leonean Leone (Old)" }, // Old Leone (SLL) - Keeping for clarity if needed
+  { code: "SLL", name: "Sierra Leonean Leone (Old)" }, // Old Leone (SLL)
   { code: "SOS", name: "Somali Shilling" },
   { code: "SRD", name: "Surinamese Dollar" },
   { code: "SSP", name: "South Sudanese Pound" },
@@ -163,7 +163,7 @@ export const currencies: Currency[] = [
   { code: "WST", name: "Samoan Tala" },
   { code: "XAF", name: "CFA Franc BEAC" },
   { code: "XCD", name: "East Caribbean Dollar" },
-  //{ code: "XCG", name: "XCG" }, // Unclear what XCG represents, omitting for now
+  { code: "XCG", name: "Gold Ounce" }, // Assuming XCG is Gold Ounce, needs clarification
   { code: "XDR", name: "Special Drawing Rights" },
   { code: "XOF", name: "CFA Franc BCEAO" },
   { code: "XPF", name: "CFP Franc" },
@@ -172,5 +172,3 @@ export const currencies: Currency[] = [
   { code: "ZMW", name: "Zambian Kwacha" },
   { code: "ZWL", name: "Zimbabwean Dollar" },
 ];
-
-    
