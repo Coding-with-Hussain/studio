@@ -16,16 +16,20 @@ export interface ExchangeRate {
  * Represents the structure of the response from the exchangerate.host API.
  */
 interface ExchangeRateApiResponse {
-  motd: {
+  motd?: { // Mark MOTD as optional, it might not always be present
     msg: string;
     url: string;
   };
   success: boolean;
-  base: string;
-  date: string; // Date string like "YYYY-MM-DD"
-  rates: {
+  base?: string; // Optional, might not be present on error
+  date?: string; // Date string like "YYYY-MM-DD", optional on error
+  rates?: { // Optional, might not be present on error
     [currencyCode: string]: number;
   };
+  error?: { // Add error field based on potential API error responses
+      code: number;
+      info: string;
+  }
 }
 
 /**
@@ -54,7 +58,8 @@ export async function getExchangeRate(
     };
   }
 
-  const apiUrl = `https://api.exchangerate.host/latest?base=${fromCurrency}&symbols=${toCurrency}`;
+  // Use HTTPS for security
+  const apiUrl = `https://api.exchangerate.host/latest?base=${encodeURIComponent(fromCurrency)}&symbols=${encodeURIComponent(toCurrency)}`;
 
   try {
     const response = await fetch(apiUrl, { cache: 'no-store' }); // Prevent caching if rates need to be fresh
@@ -68,17 +73,42 @@ export async function getExchangeRate(
          const errorBody = await response.json();
          console.error("API Error Body:", errorBody);
        } catch (parseError) {
-         // Ignore if response body isn't JSON or empty
+          console.error("Could not parse error response body.");
        }
       return null; // Indicate error
     }
 
     const data: ExchangeRateApiResponse = await response.json();
 
-    if (!data.success || !data.rates || !(toCurrency in data.rates)) {
-      console.error("API response error or missing rate:", data);
-      return null; // Indicate error
+    // Check if data itself is null or empty, which shouldn't happen on success
+    if (!data || Object.keys(data).length === 0) {
+        console.error("API response was successful but returned empty data. URL:", apiUrl, "Response Body:", data);
+        return null;
     }
+
+    // More detailed checks for expected success structure
+    if (!data.success) {
+        console.error("API indicated failure (success: false). URL:", apiUrl, "Response:", data);
+        return null;
+    }
+    if (!data.rates) {
+        console.error("API response missing 'rates' object. URL:", apiUrl, "Response:", data);
+        return null;
+    }
+     if (typeof data.rates !== 'object' || data.rates === null) {
+        console.error("API response 'rates' is not a valid object. URL:", apiUrl, "Response:", data);
+        return null;
+    }
+    if (!(toCurrency in data.rates)) {
+        console.error(`API response missing target currency '${toCurrency}' in 'rates'. URL:`, apiUrl, "Response:", data);
+        return null;
+    }
+    if (!data.date) {
+        console.warn("API response missing 'date'. Using current date as fallback. URL:", apiUrl, "Response:", data);
+        // Provide a fallback date, but ideally the API should return it
+        data.date = new Date().toISOString().split('T')[0];
+    }
+
 
     // Use the date provided by the API as the last updated date
     const lastUpdatedDate = data.date; // e.g., "2024-07-26"
@@ -89,7 +119,7 @@ export async function getExchangeRate(
     };
   } catch (error) {
      if (error instanceof Error) {
-        console.error(`Network or other error fetching exchange rate from ${apiUrl}:`, error.message);
+        console.error(`Network or other error fetching exchange rate from ${apiUrl}:`, error.message, error.stack);
      } else {
         console.error(`An unknown error occurred fetching exchange rate from ${apiUrl}:`, error);
      }
