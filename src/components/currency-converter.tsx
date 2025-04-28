@@ -12,6 +12,9 @@ import { getExchangeRate, type ExchangeRate } from "@/services/exchange-rate";
 import { Loader2, ArrowRightLeft } from "lucide-react";
 import { format, parseISO } from 'date-fns';
 
+// Define popular currencies
+const popularCurrencies = ["USD", "EUR", "GBP", "JPY", "CAD"];
+
 const CurrencyConverter: React.FC = () => {
   const [amount, setAmount] = useState<string>("1");
   const [fromCurrency, setFromCurrency] = useState<string>("USD"); // Default From: USD
@@ -76,6 +79,7 @@ const CurrencyConverter: React.FC = () => {
 
 
     try {
+      // Use static data service
       const rateInfo = await getExchangeRate(fromCurrency, toCurrency);
 
       if (rateInfo) {
@@ -83,13 +87,14 @@ const CurrencyConverter: React.FC = () => {
         const result = numericAmount * rateInfo.rate;
         // Format to a reasonable number of decimal places, e.g., 4
         setConvertedAmount(result.toFixed(4));
-        setLastUpdatedTime(rateInfo.lastUpdated); // Set the last updated time from API response
+        setLastUpdatedTime(rateInfo.lastUpdated); // Set the last updated time from static data source
       } else {
-         setError("Failed to fetch exchange rate. Please try again later.");
+         // This case is less likely with static data unless currencies are invalid
+         setError("Failed to get exchange rate from static data.");
       }
     } catch (err) {
-      console.error("Failed to fetch exchange rate:", err);
-      setError("Failed to fetch exchange rate. Please try again later.");
+      console.error("Error processing static exchange rate:", err);
+      setError("An error occurred while processing the exchange rate.");
     } finally {
       setIsLoading(false);
     }
@@ -130,14 +135,21 @@ const CurrencyConverter: React.FC = () => {
     // Recalculation will be triggered by the useEffect watching currency changes
   };
 
+   // Handler for popular currency button clicks
+   const handlePopularCurrencyClick = (currencyCode: string) => {
+    setFromCurrency(currencyCode);
+    // The useEffect watching fromCurrency will trigger fetchRate
+  };
+
+
   const formattedLastUpdated = useMemo(() => {
     if (!lastUpdatedTime) return null;
     try {
-        // The date string from the API might just be 'YYYY-MM-DD'.
-        // Append a default time to make it a full ISO string parseable by date-fns.
-        const isoString = lastUpdatedTime.includes('T') ? lastUpdatedTime : `${lastUpdatedTime}T00:00:00Z`;
+        // The date string from the static data is 'YYYY-MM-DD'.
+        const isoString = `${lastUpdatedTime}T00:00:00Z`; // Treat as UTC midnight
         const date = parseISO(isoString);
-        return format(date, "PPP p"); // e.g., Jun 21, 2024 12:00:00 AM (or actual time if provided)
+        // Format just the date part
+        return format(date, "PPP"); // e.g., Jul 26, 2024
     } catch (e) {
         console.error("Error parsing date:", e, "Input was:", lastUpdatedTime);
         return "Invalid date"; // Fallback
@@ -151,6 +163,25 @@ const CurrencyConverter: React.FC = () => {
         <CardTitle className="text-2xl font-bold text-center">RateShift Currency Converter</CardTitle>
       </CardHeader>
       <CardContent className="p-6 space-y-6 bg-background">
+         {/* Popular Currencies Section */}
+         <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">Popular Currencies (set 'From')</Label>
+            <div className="flex flex-wrap gap-2">
+                {popularCurrencies.map((code) => (
+                <Button
+                    key={code}
+                    variant={fromCurrency === code ? "default" : "outline"} // Highlight active popular currency
+                    size="sm"
+                    onClick={() => handlePopularCurrencyClick(code)}
+                    className="transition-all"
+                >
+                    {code}
+                </Button>
+                ))}
+            </div>
+        </div>
+
+
         <div className="space-y-2">
           <Label htmlFor="amount" className="text-sm font-medium">Amount</Label>
           <Input
@@ -206,7 +237,7 @@ const CurrencyConverter: React.FC = () => {
           {isLoading ? (
             <div className="flex items-center justify-center text-muted-foreground animate-pulse">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
-              <span>Fetching latest rate...</span>
+              <span>Calculating rate...</span>
             </div>
           ) : convertedAmount !== null && !error ? (
              // Ensure amount is valid number > 0 before showing result
@@ -231,7 +262,7 @@ const CurrencyConverter: React.FC = () => {
        {formattedLastUpdated && !isLoading && !error && convertedAmount !== null && (
          <CardFooter className="bg-secondary p-3 text-center justify-center border-t">
              <p className="text-xs text-muted-foreground">
-                 Rate from {formattedLastUpdated}
+                 Static Rates from {formattedLastUpdated}
              </p>
          </CardFooter>
        )}
