@@ -15,7 +15,7 @@ import { format, parseISO } from 'date-fns';
 const CurrencyConverter: React.FC = () => {
   const [amount, setAmount] = useState<string>("1");
   const [fromCurrency, setFromCurrency] = useState<string>("USD"); // Default From: USD
-  const [toCurrency, setToCurrency] = useState<string>("INR");   // Default To: INR (Changed from EUR)
+  const [toCurrency, setToCurrency] = useState<string>("EUR");   // Default To: EUR
   const [exchangeRateInfo, setExchangeRateInfo] = useState<ExchangeRate | null>(null);
   const [convertedAmount, setConvertedAmount] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
